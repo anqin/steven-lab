@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>24点游戏 - AI玩家</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    background: radial-gradient(ellipse at 50% 30%, #1e7a4a 0%, #0d4d2b 75%);
+    font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+    color: #fff;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .app { width: 884px; position: relative; left: 50%; margin-left: -442px; padding: 14px 12px 20px; transform-origin: top center; }
+
+  header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  header h1 { font-size: 26px; letter-spacing: 2px; text-shadow: 0 2px 4px rgba(0,0,0,.4); }
+  .switch { font-size: 14px; cursor: pointer; background: rgba(0,0,0,.25); padding: 6px 12px; border-radius: 16px; }
+  .switch input { vertical-align: -2px; margin-right: 4px; }
+
+  /* ---------- 牌桌 ---------- */
+  #table { position: relative; width: 860px; height: 432px; margin: 0 auto;
+           background: rgba(0,0,0,.18); border-radius: 14px; overflow: hidden; }
+  .zone-label { position: absolute; font-size: 13px; color: #cfe9d8; opacity: .9; }
+
+  .slot {
+    position: absolute; width: 84px; height: 118px;
+    border: 2px dashed rgba(255,224,130,.85); border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(255,224,130,.9); font-size: 14px; text-align: center; line-height: 1.5;
+    pointer-events: none;
+  }
+  .op-hint { position: absolute; left: 345px; top: 246px; width: 170px; text-align: center;
+             font-size: 12px; color: #cfe9d8; }
+  .op-group { position: absolute; left: 362px; top: 270px; width: 136px;
+              display: grid; grid-template-columns: 64px 64px; gap: 8px; }
+  .op-btn {
+    width: 64px; height: 40px; font-size: 22px; font-weight: bold; cursor: pointer;
+    border: none; border-radius: 8px; color: #0d4d2b;
+    background: linear-gradient(#ffffff, #dfe8e0); box-shadow: 0 3px 5px rgba(0,0,0,.35);
+  }
+  .op-btn:hover { background: linear-gradient(#fff8d0, #ffe082); }
+  .op-btn:active { transform: translateY(1px); }
+
+  /* ---------- 扑克牌 ---------- */
+  .card {
+    position: absolute; width: 84px; height: 118px; cursor: grab;
+    background: linear-gradient(160deg, #fffef8 0%, #f4f1e3 100%);
+    border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,.4);
+    text-align: center; transition: left .25s ease, top .25s ease;
+  }
+  .card.dragging { transition: none; cursor: grabbing; box-shadow: 0 10px 22px rgba(0,0,0,.5); }
+  .card .corner { position: absolute; top: 4px; left: 7px; font-size: 13px; font-weight: bold; color: #222; }
+  .card .rank { margin-top: 22px; font-size: 36px; font-weight: bold; color: #1a1a1a; }
+  .card.red .rank, .card.red .corner { color: #c62828; }
+  .card .expr { margin: 6px 4px 0; font-size: 9px; line-height: 1.25; color: #8a8a8a;
+                max-height: 26px; overflow: hidden; word-break: break-all; }
+
+  /* ---------- 状态与步骤 ---------- */
+  #status { min-height: 24px; margin: 8px 2px 4px; font-size: 15px; color: #ffe082; }
+  .steps-title { font-size: 13px; color: #cfe9d8; margin: 2px 2px 4px; }
+  #steps { background: rgba(0,0,0,.25); border-radius: 8px; padding: 6px 12px;
+           min-height: 34px; max-height: 92px; overflow: auto; font-size: 13px; line-height: 1.7; }
+  #steps .muted { color: #9ab8a6; }
+
+  /* ---------- 工具栏 ---------- */
+  .toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .btn {
+    padding: 8px 14px; font-size: 14px; font-family: inherit; cursor: pointer;
+    border: none; border-radius: 8px; color: #0d4d2b;
+    background: linear-gradient(#ffffff, #dfe8e0); box-shadow: 0 2px 4px rgba(0,0,0,.3);
+  }
+  .btn:hover { background: linear-gradient(#f0fbf3, #cfe3d5); }
+  .btn:active { transform: translateY(1px); }
+  .btn.primary { background: linear-gradient(#3cb371, #1e7a45); color: #fff; }
+  .btn.primary:hover { background: linear-gradient(#4cc481, #26894f); }
+  .btn.danger { background: linear-gradient(#ef5350, #c62828); color: #fff; }
+  .btn.danger:hover { background: linear-gradient(#f6645f, #d63a34); }
+  .timer-box { display: flex; align-items: center; gap: 6px; font-size: 14px;
+               background: rgba(0,0,0,.25); padding: 4px 10px; border-radius: 8px; }
+  #timer-input { width: 46px; padding: 5px 4px; border: none; border-radius: 5px;
+                 text-align: center; font-size: 14px; }
+  #timer-label { color: #ff8a80; font-weight: bold; min-width: 82px; }
+  .spacer { flex: 1; }
+
+  /* ---------- 模态框 ---------- */
+  #modal { position: fixed; inset: 0; background: rgba(0,0,0,.55);
+           display: flex; align-items: center; justify-content: center; z-index: 2000; }
+  #modal.hidden { display: none; }
+  .modal-box { background: #fffdf6; color: #222; border-radius: 12px; padding: 22px 26px;
+               width: 520px; max-width: 92vw; max-height: 80vh; overflow: auto;
+               box-shadow: 0 12px 40px rgba(0,0,0,.5); }
+  .modal-box h3 { margin-bottom: 12px; font-size: 19px; color: #0d4d2b; }
+  .modal-body { font-size: 14px; line-height: 1.9; white-space: pre-wrap; }
+  .modal-box .close-row { text-align: center; margin-top: 16px; }
+  .modal-box .close-row .btn { padding: 8px 34px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>♣ 24 点游戏 ♦</h1>
+    <label class="switch"><input type="checkbox" id="includeHigh">牌面包含 J、Q、K、0</label>
+  </header>
+
+  <div id="table">
+    <div class="zone-label" style="top:8px;left:14px">手牌区：把两张牌拖到下方虚线空位</div>
+    <div class="zone-label" style="top:240px;left:14px">运算区</div>
+    <div class="slot" style="left:261px;top:270px">拖入<br>牌</div>
+    <div class="slot" style="left:515px;top:270px">拖入<br>牌</div>
+    <div class="op-hint">选择两张牌之间的运算符</div>
+    <div class="op-group">
+      <button class="op-btn" data-op="add" title="加">＋</button>
+      <button class="op-btn" data-op="mul" title="乘">×</button>
+      <button class="op-btn" data-op="sub" title="减">－</button>
+      <button class="op-btn" data-op="div" title="除">÷</button>
+    </div>
+    <!-- 扑克牌动态插入此处 -->
+  </div>
+
+  <div id="status">点击「开始游戏」发牌。</div>
+  <div class="steps-title">计算步骤：</div>
+  <div id="steps"><span class="muted">暂无</span></div>
+
+  <div class="toolbar">
+    <button id="btn-start" class="btn primary">开始游戏</button>
+    <button id="btn-restart" class="btn primary">重新开始</button>
+    <button id="btn-giveup" class="btn">放弃</button>
+    <span class="timer-box">倒计时(秒)
+      <input id="timer-input" value="30">
+      <button id="btn-timer" class="btn">计时</button>
+      <span id="timer-label">计时未开始</span>
+    </span>
+    <span class="spacer"></span>
+    <button id="btn-help" class="btn">帮助</button>
+    <button id="btn-about" class="btn">关于</button>
+    <button id="btn-quit" class="btn danger">退出游戏</button>
+  </div>
+</div>
+
+<div id="modal" class="hidden">
+  <div class="modal-box">
+    <h3 id="modal-title"></h3>
+    <div id="modal-body" class="modal-body"></div>
+    <div class="close-row"><button class="btn primary" onclick="closeModal()">确 定</button></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ===================== 常量与工具 ===================== */
+const CARD_W = 84, CARD_H = 118, HAND_Y = 44, TABLE_W = 860;
+const SLOT_POS = { L: { x: 261, y: 270 }, R: { x: 515, y: 270 } };
+const OP_SYMBOL = { add: '＋', sub: '－', mul: '×', div: '÷' };
+const RANK_LABEL = { 11: 'J', 12: 'Q', 13: 'K' };
+
+function gcd(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) { const t = a % b; a = b; b = t; } return a || 1; }
+function frac(n, d) {
+  d = d === undefined ? 1 : d;
+  if (d < 0) { n = -n; d = -d; }
+  const g = gcd(n, d);
+  return { n: n / g, d: d / g };
+}
+const fAdd = (a, b) => frac(a.n * b.d + b.n * a.d, a.d * b.d);
+const fSub = (a, b) => frac(a.n * b.d - b.n * a.d, a.d * b.d);
+const fMul = (a, b) => frac(a.n * b.n, a.d * b.d);
+const fDiv = (a, b) => frac(a.n * b.d, a.d * b.n);
+const fmt = f => f.d === 1 ? String(f.n) : f.n + '/' + f.d;
+const is24 = f => f.n === 24 && f.d === 1;
+const rankLabel = v => RANK_LABEL[v] !== undefined ? RANK_LABEL[v] : String(v);
+
+/* ===================== AI 求解器 ===================== */
+/* 枚举全部运算组合（分数精确计算），返回最多 limit 个解法：
+   [{ expr: 完整表达式, steps: [每步过程] }, ...] */
+function solve24(values, limit) {
+  const sols = [], seen = new Set();
+  function strip(expr) {  // 去掉最外层括号，显示更清爽
+    if (expr[0] === '(' && expr[expr.length - 1] === ')') {
+      let depth = 0;
+      for (let i = 0; i < expr.length; i++) {
+        if (expr[i] === '(') depth++;
+        else if (expr[i] === ')') depth--;
+        if (depth === 0 && i < expr.length - 1) return expr;
+      }
+      return expr.slice(1, -1);
+    }
+    return expr;
+  }
+  function helper(items, exprs, steps) {
+    if (sols.length >= limit) return;
+    if (items.length === 1) {
+      if (is24(items[0]) && !seen.has(exprs[0])) {
+        seen.add(exprs[0]);
+        sols.push({ expr: strip(exprs[0]), steps: steps.slice() });
+      }
+      return;
+    }
+    for (let i = 0; i < items.length; i++) {
+      for (let j = i + 1; j < items.length; j++) {
+        const a = items[i], b = items[j], ea = exprs[i], eb = exprs[j];
+        const rest = items.filter((_, k) => k !== i && k !== j);
+        const erest = exprs.filter((_, k) => k !== i && k !== j);
+        const cands = [
+          [fAdd(a, b), '(' + ea + '＋' + eb + ')', ea + ' ＋ ' + eb + ' = ' + fmt(fAdd(a, b))],
+          [fMul(a, b), '(' + ea + '×' + eb + ')', ea + ' × ' + eb + ' = ' + fmt(fMul(a, b))],
+          [fSub(a, b), '(' + ea + '－' + eb + ')', ea + ' － ' + eb + ' = ' + fmt(fSub(a, b))],
+          [fSub(b, a), '(' + eb + '－' + ea + ')', eb + ' － ' + ea + ' = ' + fmt(fSub(b, a))],
+        ];
+        if (b.n !== 0) cands.push([fDiv(a, b), '(' + ea + '÷' + eb + ')', ea + ' ÷ ' + eb + ' = ' + fmt(fDiv(a, b))]);
+        if (a.n !== 0) cands.push([fDiv(b, a), '(' + eb + '÷' + ea + ')', eb + ' ÷ ' + ea + ' = ' + fmt(fDiv(b, a))]);
+        for (const c of cands) helper(rest.concat([c[0]]), erest.concat([c[1]]), steps.concat([c[2]]));
+      }
+    }
+  }
+  helper(values.map(v => frac(v)), values.map(String), []);
+  return sols;
+}
+
+/* ===================== 游戏状态 ===================== */
+const state = {
+  cards: [],            // {id, value, label, expr, el, x, y, slot}
+  slots: { L: null, R: null },
+  playing: false,
+  initialValues: [],
+  sols: [],
+  steps: [],
+  nextId: 1,
+  timerId: null,
+  remaining: 0,
+  zTop: 10,
+};
+
+const $ = id => document.getElementById(id);
+const tableEl = $('table'), statusEl = $('status'), stepsEl = $('steps');
+const timerLabel = $('timer-label'), timerInput = $('timer-input');
+
+function setStatus(t) { statusEl.textContent = t; }
+
+/* ===================== 牌的创建 / 布局 ===================== */
+function addCard(value, label, expr) {
+  const id = state.nextId++;
+  const el = document.createElement('div');
+  el.className = 'card' + (/[JQK]/.test(label) ? ' red' : '');
+  el.innerHTML = '<div class="corner">' + label + '</div>'
+               + '<div class="rank">' + label + '</div>'
+               + '<div class="expr">' + expr + '</div>';
+  tableEl.appendChild(el);
+  const card = { id, value, label, expr, el, x: 0, y: 0, slot: null };
+  state.cards.push(card);
+  bindDrag(card);
+  setPos(card, TABLE_W / 2 - CARD_W / 2, 150);   // 先叠在中央，再展开
+  return card;
+}
+
+function setPos(card, x, y) {
+  card.x = x; card.y = y;
+  card.el.style.left = x + 'px';
+  card.el.style.top = y + 'px';
+}
+
+function removeCard(card) {
+  card.el.remove();
+  state.cards = state.cards.filter(c => c !== card);
+}
+
+function normalizeHand() {   // 手牌区的空闲牌均匀排布
+  const free = state.cards.filter(c => !c.slot);
+  const n = free.length;
+  if (!n) return;
+  const gap = 18;
+  const x0 = (TABLE_W - (n * CARD_W + (n - 1) * gap)) / 2;
+  free.forEach((c, i) => setPos(c, x0 + i * (CARD_W + gap), HAND_Y));
+}
+
+/* ===================== 拖拽 ===================== */
+function bindDrag(card) {
+  const el = card.el;
+  el.addEventListener('pointerdown', e => {
+    if (!state.playing) return;
+    e.preventDefault();
+    if (card.slot) {                       // 从槽里拖出
+      state.slots[card.slot] = null;
+      card.slot = null;
+    }
+    const rect = tableEl.getBoundingClientRect();
+    const scale = rect.width / TABLE_W;                 // 界面整体缩放比例
+    const toLocal = (cx, cy) => [(cx - rect.left) / scale, (cy - rect.top) / scale];
+    try { el.setPointerCapture(e.pointerId); } catch (err) {}
+    el.classList.add('dragging');
+    el.style.zIndex = ++state.zTop;
+    const p0 = toLocal(e.clientX, e.clientY);
+    const offX = p0[0] - card.x, offY = p0[1] - card.y;
+    const onMove = ev => { const p = toLocal(ev.clientX, ev.clientY); setPos(card, p[0] - offX, p[1] - offY); };
+    const onUp = ev => {
+      el.removeEventListener('pointermove', onMove);
+      el.removeEventListener('pointerup', onUp);
+      el.classList.remove('dragging');
+      const p = toLocal(ev.clientX, ev.clientY);
+      dropCard(card, p[0] - offX + CARD_W / 2, p[1] - offY + CARD_H / 2);
+    };
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerup', onUp);
+  });
+}
+
+function dropCard(card, cx, cy) {          // cx/cy 为牌中心点坐标
+  let dropped = null;
+  for (const key of ['L', 'R']) {
+    const s = SLOT_POS[key];
+    if (cx >= s.x - 14 && cx <= s.x + CARD_W + 14 && cy >= s.y - 14 && cy <= s.y + CARD_H + 14) { dropped = key; break; }
+  }
+  if (dropped) {
+    const occupant = state.cards.find(c => c.slot === dropped);
+    if (occupant) {
+      setStatus('该空位已有牌，请先拖走或直接点运算符。');
+    } else {
+      card.slot = dropped;
+      state.slots[dropped] = card.id;
+      setPos(card, SLOT_POS[dropped].x, SLOT_POS[dropped].y);
+    }
+  }
+  normalizeHand();
+  if (state.slots.L && state.slots.R) {
+    setStatus('两张牌已就位，请点击中间的运算符（＋ － × ÷）。注意减法、除法与左右顺序有关。');
+  }
+}
+
+/* ===================== 运算 ===================== */
+function applyOp(op) {
+  if (!state.playing) { setStatus('请先点击「开始游戏」。'); return; }
+  const lc = state.cards.find(c => c.slot === 'L');
+  const rc = state.cards.find(c => c.slot === 'R');
+  if (!lc || !rc) { setStatus('请先把两张牌分别拖入左右两个空位。'); return; }
+  if (op === 'div' && rc.value.n === 0) { setStatus('除数不能为 0！'); return; }
+
+  const val = op === 'add' ? fAdd(lc.value, rc.value)
+            : op === 'sub' ? fSub(lc.value, rc.value)
+            : op === 'mul' ? fMul(lc.value, rc.value)
+            : fDiv(lc.value, rc.value);
+  const expr = '(' + lc.expr + OP_SYMBOL[op] + rc.expr + ')';
+  const step = lc.expr + ' ' + OP_SYMBOL[op] + ' ' + rc.expr + ' = ' + fmt(val);
+
+  removeCard(lc); removeCard(rc);
+  state.slots.L = state.slots.R = null;
+  addCard(val, fmt(val), expr);
+  state.steps.push(step);
+  renderSteps();
+  normalizeHand();
+
+  if (state.cards.length === 1) {
+    if (is24(val)) {
+      endGame();
+      setStatus('🎉 恭喜，你赢了！');
+      showModal('🎉 你赢了！', '四张牌全部用完，结果正好是 24：\n\n' + state.cards[0].expr + ' = 24');
+    } else {
+      endGame();
+      setStatus('结果是 ' + fmt(val) + ' ≠ 24。');
+      showModal('很遗憾', '所有牌已用完，结果是 ' + fmt(val) + '，不是 24。\n\n可点击「放弃」查看本局解法，或「重新开始」再来一局。');
+    }
+  } else {
+    setStatus('得到 ' + fmt(val) + '（新牌已入手牌区），还剩 ' + state.cards.length + ' 张牌，请继续运算。');
+  }
+}
+
+function endGame() { state.playing = false; stopTimer(); }
+
+/* ===================== 发牌 / 重开 ===================== */
+function deal() {
+  stopTimer();
+  state.cards.forEach(c => c.el.remove());
+  state.cards = [];
+  state.slots = { L: null, R: null };
+  state.steps = [];
+  renderSteps();
+  const pool = $('includeHigh').checked
+    ? [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+    : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+  const vals = [];
+  for (let i = 0; i < 4; i++) vals.push(pool[Math.floor(Math.random() * pool.length)]);
+  state.initialValues = vals.slice();
+  state.sols = solve24(vals, 2);
+  vals.forEach(v => addCard(frac(v), rankLabel(v), String(v)));
+  state.playing = true;
+  requestAnimationFrame(normalizeHand);
+  setStatus('已发牌：' + vals.map(rankLabel).join('、') + ' —— 请拖动两张牌到下方虚线空位。');
+}
+
+/* ===================== 放弃（AI 求解） ===================== */
+function giveUp() {
+  if (!state.initialValues.length) { setStatus('请先开始一局再放弃。'); return; }
+  endGame();
+  if (state.sols.length) {
+    const lines = state.sols.map((s, i) =>
+      '方法' + (i + 1) + '：' + s.expr + ' = 24\n过程：' + s.steps.join('；'));
+    setStatus('已放弃。AI 找到解法，详见弹窗。');
+    showModal('AI 计算结果', '这四张牌可以算出 24，前两种方法：\n\n' + lines.join('\n\n'));
+  } else {
+    setStatus('已放弃。本局无解。');
+    showModal('AI 计算结果', '本局无解！\n\n这四张牌（' + state.initialValues.join('、') + '）无论怎么组合都无法算出 24。');
+  }
+}
+
+/* ===================== 帮助 / 关于 ===================== */
+const HELP_RULES =
+  '【游戏规则】\n' +
+  '用 4 张牌通过加、减、乘、除运算（可加括号）得到 24，每张牌必须且只能使用一次。\n\n' +
+  '【操作方法】\n' +
+  '1. 把两张牌分别拖入左右两个虚线空位；\n' +
+  '2. 点击中间的运算符即完成一步运算，结果变为一张新牌回到手牌区；\n' +
+  '3. 用新牌与剩余牌继续运算，直到所有牌用完，结果为 24 即获胜。\n\n' +
+  '【注意事项】\n' +
+  '减法和除法与拖入左右空位的顺序有关（先拖入左空位的是左操作数）；除数不能为 0；中间结果可以是分数（如 8/3）。';
+
+function showHelp() {
+  let extra;
+  if (!state.initialValues.length) {
+    extra = '\n\n【第一步提示】\n尚未发牌，请先点击「开始游戏」。';
+  } else if (state.sols.length) {
+    extra = '\n\n【第一步提示】\n' + state.sols[0].steps[0] +
+      '\n\n【参考解法】\n' + state.sols.map((s, i) => (i + 1) + '. ' + s.expr + ' = 24').join('\n');
+  } else {
+    extra = '\n\n【第一步提示】\n本局无解，建议点击「重新开始」换一组牌。';
+  }
+  showModal('游戏帮助', HELP_RULES + extra);
+}
+
+function showAbout() {
+  showModal('关于',
+    '24点游戏（AI 玩家版）v1.0\n\n' +
+    '规则：四张牌通过加减乘除（可加括号）算出 24 即获胜，每张牌必须且只能使用一次。\n' +
+    '本局无解时，AI 会帮你判断并给出前两种解法。\n\n' +
+    '作者：24点游戏开发组\n');
+}
+
+/* ===================== 计时器 ===================== */
+function startTimer() {
+  const secs = parseInt(timerInput.value, 10);
+  if (!Number.isInteger(secs) || secs <= 0) {
+    showModal('提示', '请输入正整数秒数（缺省 30 秒）。');
+    return;
+  }
+  stopTimer();
+  state.remaining = secs;
+  timerLabel.textContent = '剩余 ' + secs + ' 秒';
+  state.timerId = setInterval(timerTick, 1000);
+  setStatus('⏱ 倒计时开始：' + secs + ' 秒，请尽快完成！');
+}
+
+function timerTick() {
+  state.remaining--;
+  if (state.remaining <= 0) {
+    stopTimer();
+    if (state.playing) {
+      endGame();
+      setStatus('⏰ 时间到！游戏失败。');
+      showModal('时间到', '⏰ 时间到，你输了！\n\n点击「重新开始」再来一局。');
+    } else {
+      setStatus('⏰ 倒计时结束。');
+    }
+    return;
+  }
+  timerLabel.textContent = '剩余 ' + state.remaining + ' 秒';
+}
+
+function stopTimer() {
+  if (state.timerId) { clearInterval(state.timerId); state.timerId = null; }
+  timerLabel.textContent = '计时未开始';
+}
+
+/* ===================== 退出 ===================== */
+function quitGame() {
+  window.close();
+  setTimeout(() => {
+    if (!window.closed) showModal('退出游戏', '浏览器阻止了自动关闭。\n\n游戏已停止，您可以放心关闭此标签页。');
+  }, 250);
+}
+
+/* ===================== 步骤 / 模态框 ===================== */
+function renderSteps() {
+  stepsEl.innerHTML = state.steps.length
+    ? state.steps.map((s, i) => '<div>' + (i + 1) + '. ' + s + '</div>').join('')
+    : '<span class="muted">暂无</span>';
+  stepsEl.scrollTop = stepsEl.scrollHeight;
+}
+
+function showModal(title, text) {
+  $('modal-title').textContent = title;
+  $('modal-body').textContent = text;
+  $('modal').classList.remove('hidden');
+}
+function closeModal() { $('modal').classList.add('hidden'); }
+
+/* ===================== 事件绑定 ===================== */
+$('btn-start').addEventListener('click', deal);
+$('btn-restart').addEventListener('click', deal);
+$('btn-giveup').addEventListener('click', giveUp);
+$('btn-timer').addEventListener('click', startTimer);
+$('btn-help').addEventListener('click', showHelp);
+$('btn-about').addEventListener('click', showAbout);
+$('btn-quit').addEventListener('click', quitGame);
+$('includeHigh').addEventListener('change', () => {
+  setStatus('牌面范围已切换为' + ($('includeHigh').checked ? '1~13 和 0（含 J、Q、K、0）' : '1~10') + '，下次发牌生效。');
+});
+document.querySelectorAll('.op-btn').forEach(b => b.addEventListener('click', () => applyOp(b.dataset.op)));
+$('modal').addEventListener('click', e => { if (e.target === $('modal')) closeModal(); });
+
+/* 窗口过窄时整体等比缩放，避免横向滚动 */
+function fitScale() {
+  const w = document.documentElement.clientWidth;
+  const s = Math.min(1, (w - 8) / 884);
+  document.querySelector('.app').style.transform = s < 1 ? 'scale(' + s + ')' : '';
+  document.body.style.overflowX = 'hidden';
+}
+window.addEventListener('resize', fitScale);
+fitScale();
+</script>
+</body>
+</html>
