@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="二十四点 AI 玩家：拖拽卡牌、四则运算、倒计时挑战，并让 AI 穷举所有解法。"
+    />
+    <meta name="theme-color" content="#071a13" />
+    <title>二十四点 · AI 玩家</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230a2f22'/%3E%3Ctext x='32' y='43' text-anchor='middle' font-family='Georgia,serif' font-size='32' font-weight='700' fill='%23e7c47d'%3E24%3C/text%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page-ambient" aria-hidden="true">
+      <span class="ambient-orb orb-one"></span>
+      <span class="ambient-orb orb-two"></span>
+      <span class="ambient-grid"></span>
+    </div>
+
+    <div class="app" id="app">
+      <header class="site-header">
+        <a class="brand" href="#" aria-label="二十四点 AI 玩家首页">
+          <span class="brand-mark" aria-hidden="true">
+            <span class="brand-card brand-card-back"></span>
+            <span class="brand-card brand-card-front">
+              <span class="brand-card-corner">♠</span>
+              <span class="brand-number">24</span>
+              <span class="brand-card-corner bottom">♥</span>
+            </span>
+          </span>
+          <span class="brand-copy">
+            <span class="brand-title">二十四点</span>
+            <span class="brand-subtitle">AI PLAYER · 四张牌，一个 24</span>
+          </span>
+        </a>
+
+        <nav class="top-nav" aria-label="应用菜单">
+          <button class="nav-btn" id="aboutBtn" type="button">
+            <span class="nav-icon" aria-hidden="true">i</span>
+            关于
+          </button>
+          <button class="nav-btn" id="helpBtn" type="button">
+            <span class="nav-icon" aria-hidden="true">?</span>
+            帮助
+          </button>
+          <span class="nav-divider" aria-hidden="true"></span>
+          <button class="nav-btn nav-btn-danger" id="exitBtn" type="button">
+            <span class="nav-icon" aria-hidden="true">×</span>
+            退出游戏
+          </button>
+        </nav>
+      </header>
+
+      <main class="game-layout">
+        <section class="table-panel" aria-labelledby="roundTitle">
+          <div class="table-heading">
+            <div class="heading-copy">
+              <div class="eyebrow">
+                <span class="eyebrow-dot"></span>
+                ROUND <span id="roundNumber">—</span>
+                <span class="eyebrow-separator">/</span>
+                TARGET 24
+              </div>
+              <h2 id="roundTitle">等待开局</h2>
+              <p id="roundSub">点击「开始游戏」，发下四张牌，开始你的 24 点挑战。</p>
+            </div>
+
+            <div class="heading-status">
+              <span class="status-badge is-ready" id="stateBadge">
+                <span class="status-light"></span>
+                <span id="stateBadgeText">准备开局</span>
+              </span>
+              <div class="mini-timer" id="miniTimer">
+                <svg viewBox="0 0 32 32" aria-hidden="true">
+                  <circle class="mini-timer-track" cx="16" cy="16" r="12"></circle>
+                  <circle
+                    class="mini-timer-progress"
+                    id="miniTimerRing"
+                    cx="16"
+                    cy="16"
+                    r="12"
+                  ></circle>
+                </svg>
+                <span class="mini-timer-copy">
+                  <strong id="topTimerValue">30s</strong>
+                  <small id="topTimerLabel">未计时</small>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="felt">
+            <div class="felt-grain" aria-hidden="true"></div>
+            <div class="felt-arc" aria-hidden="true"></div>
+
+            <div class="table-meta">
+              <span class="table-kicker">
+                <span class="suit-mark" aria-hidden="true">♣</span>
+                THE TABLE
+              </span>
+              <span class="table-hint" id="tableHint">
+                拖拽任意两张牌到运算区，并选择运算符
+              </span>
+              <span class="round-clock" id="roundClock">
+                <span class="clock-icon" aria-hidden="true"></span>
+                <span id="roundClockText">等待开局</span>
+              </span>
+            </div>
+
+            <div class="workbench" aria-label="运算区">
+              <div class="slot-column">
+                <span class="slot-label">
+                  <span class="slot-index">A</span>
+                  第一张牌
+                </span>
+                <div
+                  class="card-slot"
+                  id="slotA"
+                  data-slot="A"
+                  role="button"
+                  tabindex="0"
+                  aria-label="第一张牌的放置位置"
+                >
+                  <span class="slot-empty">
+                    <span class="slot-plus" aria-hidden="true">+</span>
+                    <span>拖入一张牌</span>
+                  </span>
+                </div>
+              </div>
+
+              <div class="operator-console">
+                <span class="console-label">选择运算符</span>
+                <div class="operators" role="group" aria-label="选择加减乘除运算符">
+                  <button class="operator-btn" type="button" data-op="+" aria-label="加">+</button>
+                  <button class="operator-btn" type="button" data-op="-" aria-label="减">−</button>
+                  <button class="operator-btn" type="button" data-op="*" aria-label="乘">×</button>
+                  <button class="operator-btn" type="button" data-op="/" aria-label="除">÷</button>
+                </div>
+                <button class="calc-btn" id="calcBtn" type="button" disabled>
+                  <span>计算合并</span>
+                  <span class="calc-key" aria-hidden="true">↵</span>
+                </button>
+              </div>
+
+              <div class="slot-column">
+                <span class="slot-label">
+                  <span class="slot-index">B</span>
+                  第二张牌
+                </span>
+                <div
+                  class="card-slot"
+                  id="slotB"
+                  data-slot="B"
+                  role="button"
+                  tabindex="0"
+                  aria-label="第二张牌的放置位置"
+                >
+                  <span class="slot-empty">
+                    <span class="slot-plus" aria-hidden="true">+</span>
+                    <span>拖入一张牌</span>
+                  </span>
+                </div>
+              </div>
+
+              <div class="result-readout" id="resultReadout">
+                <span class="readout-label">本轮结果</span>
+                <div class="readout-main">
+                  <span class="readout-equals" aria-hidden="true">=</span>
+                  <output class="readout-value" id="previewValue">?</output>
+                </div>
+                <span class="readout-expression" id="previewExpr">等待选择两张牌</span>
+                <span class="readout-foot" id="previewFoot">目标值 24</span>
+              </div>
+            </div>
+
+            <div class="hand-zone">
+              <div class="hand-head">
+                <div>
+                  <div class="eyebrow">YOUR HAND</div>
+                  <h3>可用牌面 <span class="count-pill" id="handCount">0</span></h3>
+                </div>
+                <p class="hand-help">
+                  拖拽或点击牌面放入 A / B 位置
+                  <span class="help-dot">·</span>
+                  每张牌仅使用一次
+                </p>
+              </div>
+
+              <div class="hand-shelf" id="handShelf" aria-live="polite"></div>
+              <div class="empty-hand" id="emptyHand" hidden>
+                <span class="empty-hand-icon" aria-hidden="true">♠</span>
+                <span id="emptyHandText">牌面都在运算区里了。</span>
+              </div>
+            </div>
+
+            <div class="table-history" id="tableHistory">
+              <span class="history-label">操作轨迹</span>
+              <div class="history-list" id="historyList">
+                <span class="history-empty">还没有进行运算</span>
+              </div>
+            </div>
+
+            <div class="action-bar">
+              <div class="main-controls">
+                <button class="action-btn action-primary" id="startBtn" type="button">
+                  <span class="action-icon" aria-hidden="true">↗</span>
+                  开始游戏
+                </button>
+                <button class="action-btn action-secondary" id="restartBtn" type="button" disabled>
+                  <span class="action-icon" aria-hidden="true">↻</span>
+                  重新开始
+                </button>
+                <button class="action-btn action-ai" id="giveUpBtn" type="button" disabled>
+                  <span class="ai-spark" aria-hidden="true">✦</span>
+                  放弃 · 让 AI 来
+                </button>
+              </div>
+              <span class="rule-note">
+                <span class="rule-key">24</span>
+                四张牌全部用完，结果必须正好等于 24
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <aside class="side-rail" aria-label="计时、设置与 AI 推演">
+          <section class="panel timer-panel" aria-labelledby="timerTitle">
+            <div class="panel-heading">
+              <div>
+                <div class="eyebrow">TIME ATTACK</div>
+                <h2 id="timerTitle">倒计时挑战</h2>
+              </div>
+              <span class="panel-tag" id="timerStateTag">未开始</span>
+            </div>
+
+            <div class="timer-core">
+              <div class="timer-ring-wrap">
+                <svg class="timer-ring" viewBox="0 0 128 128" aria-hidden="true">
+                  <circle class="timer-ring-track" cx="64" cy="64" r="56"></circle>
+                  <circle
+                    class="timer-ring-progress"
+                    id="timerRing"
+                    cx="64"
+                    cy="64"
+                    r="56"
+                  ></circle>
+                </svg>
+                <div class="timer-ring-center">
+                  <span class="timer-value" id="timerValue">30</span>
+                  <span class="timer-unit">秒</span>
+                </div>
+              </div>
+              <p class="timer-note" id="timerNote">
+                设置倒计时，点击开始。时间归零仍未完成则本局失败。
+              </p>
+            </div>
+
+            <div class="timer-form">
+              <label class="time-input-label" for="timerInput">倒计时</label>
+              <div class="time-input-shell">
+                <input
+                  id="timerInput"
+                  type="number"
+                  inputmode="numeric"
+                  min="1"
+                  max="600"
+                  step="1"
+                  value="30"
+                  aria-label="倒计时秒数"
+                />
+                <span>秒</span>
+              </div>
+              <button class="timer-start-btn" id="timerBtn" type="button" disabled>
+                <span class="timer-play" aria-hidden="true">▶</span>
+                <span id="timerBtnText">开始计时</span>
+              </button>
+            </div>
+            <p class="timer-error" id="timerError" role="alert"></p>
+          </section>
+
+          <section class="panel deck-panel" aria-labelledby="deckTitle">
+            <div class="panel-heading compact">
+              <div>
+                <div class="eyebrow">DECK MODE</div>
+                <h2 id="deckTitle">牌面设置</h2>
+              </div>
+              <span class="panel-tag" id="deckModeTag">标准 A–10</span>
+            </div>
+
+            <label class="switch-row" for="advancedToggle">
+              <span class="switch-copy">
+                <strong>进阶牌面</strong>
+                <span>开启后加入 J、Q、K 与 0</span>
+              </span>
+              <span class="switch-control">
+                <input
+                  id="advancedToggle"
+                  type="checkbox"
+                  role="switch"
+                  aria-label="开启进阶牌面，包括 J、Q、K 和 0"
+                />
+                <span class="switch-track" aria-hidden="true">
+                  <span class="switch-thumb"></span>
+                </span>
+              </span>
+            </label>
+
+            <div class="deck-preview" aria-hidden="true">
+              <span class="deck-chip">A–10</span>
+              <span class="deck-connector">+</span>
+              <span class="deck-chip is-advanced" id="advancedChip">J Q K 0</span>
+              <span class="deck-hint">下一局生效</span>
+            </div>
+          </section>
+
+          <section class="panel ai-panel" id="aiPanel" aria-labelledby="aiTitle">
+            <div class="ai-heading">
+              <span class="ai-orb" aria-hidden="true">
+                <span class="ai-orb-core"></span>
+                <span class="ai-orb-ring"></span>
+              </span>
+              <div class="ai-title-wrap">
+                <div class="eyebrow">AI SOLVER</div>
+                <h2 id="aiTitle">AI 推演台</h2>
+              </div>
+              <span class="ai-state" id="aiState">待命</span>
+            </div>
+            <div class="ai-content" id="aiContent">
+              <div class="ai-welcome">
+                <p class="ai-welcome-title">卡住了？交给我。</p>
+                <p class="ai-welcome-copy">
+                  点击「放弃 · 让 AI 来」，我会穷举数字排列、括号结构与所有四则运算，
+                  找出前两种解法；如果无解，也会明确告诉你。
+                </p>
+                <div class="ai-capabilities">
+                  <span>精确分数</span>
+                  <span>全排列</span>
+                  <span>双解法</span>
+                </div>
+              </div>
+            </div>
+          </section>
+        </aside>
+      </main>
+
+      <footer class="site-footer">
+        <span>24 POINTS · AI PLAYER</span>
+        <span class="footer-sep">/</span>
+        <span>四则运算 · 精确分数 · 穷举求解</span>
+        <span class="footer-spacer"></span>
+        <span>DESIGNED FOR THE PERFECT 24</span>
+      </footer>
+    </div>
+
+    <dialog class="modal about-modal" id="aboutDialog" aria-labelledby="aboutTitle">
+      <div class="modal-shell">
+        <button class="modal-close" type="button" data-close aria-label="关闭关于窗口">×</button>
+        <div class="modal-kicker">ABOUT THE GAME</div>
+        <h2 class="modal-title" id="aboutTitle">四张牌，<em>刚好 24。</em></h2>
+        <p class="modal-lede">
+          二十四点是一款经典的数字纸牌游戏。用四张牌的牌面数字，通过加、减、乘、除和括号，
+          让最终结果正好等于 24。每张牌必须且只能使用一次。
+        </p>
+
+        <div class="about-rules">
+          <article>
+            <span class="rule-number">01</span>
+            <h3>发牌</h3>
+            <p>点击开始游戏，随机获得四张牌。默认使用 A–10，开启进阶后加入 J、Q、K 与 0。</p>
+          </article>
+          <article>
+            <span class="rule-number">02</span>
+            <h3>运算</h3>
+            <p>拖拽任意两张牌到 A / B 位置，选择 + − × ÷，点击计算合并成一张新牌。</p>
+          </article>
+          <article>
+            <span class="rule-number">03</span>
+            <h3>胜利</h3>
+            <p>用完四张牌，并且最后一张结果牌的值正好是 24，即获得胜利。</p>
+          </article>
+          <article>
+            <span class="rule-number">04</span>
+            <h3>求解</h3>
+            <p>放弃后可让 AI 穷举所有可能。AI 会展示前两种解法；若不存在解法，会提示本局无解。</p>
+          </article>
+        </div>
+
+        <div class="modal-note">
+          <span class="note-icon">✦</span>
+          <p>
+            A = 1，J = 11，Q = 12，K = 13。除法按精确分数计算，例如
+            <code>8 ÷ (3 − 8 ÷ 3) = 24</code>；除以 0 不合法。
+          </p>
+        </div>
+
+        <div class="author-card">
+          <span class="author-avatar" aria-hidden="true">24</span>
+          <div>
+            <span class="author-label">AUTHOR &amp; BUILD</span>
+            <strong>DeepSeek Coding Agent</strong>
+            <p>为 DSH 图形界面设计 · 纯前端单页应用 · Version 1.0</p>
+          </div>
+          <span class="author-suits" aria-hidden="true">♠ ♥ ♣ ♦</span>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog class="modal help-modal" id="helpDialog" aria-labelledby="helpTitle">
+      <div class="modal-shell">
+        <button class="modal-close" type="button" data-close aria-label="关闭帮助窗口">×</button>
+        <div class="modal-kicker">HOW TO PLAY</div>
+        <h2 class="modal-title" id="helpTitle">先看一步，<em>再算下一步。</em></h2>
+        <p class="modal-lede">
+          目标是把四张牌全部用完，让最终结果是 24。你可以拖拽牌面，也可以直接点击牌面，
+          它会自动进入空着的运算位置。
+        </p>
+
+        <div class="help-dynamic" id="helpDynamic">
+          <div class="help-hint is-muted">
+            <span class="hint-kicker">本局第一步提示</span>
+            <p>开始一局后，这里会根据你当前的牌面给出可行的第一步。</p>
+          </div>
+        </div>
+
+        <div class="help-columns">
+          <article class="help-card">
+            <h3><span>01</span> 操作步骤</h3>
+            <ol>
+              <li>点击「开始游戏」发出四张牌。</li>
+              <li>将任意两张牌拖入 A / B 位置。</li>
+              <li>选择运算符，点击「计算合并」。</li>
+              <li>重复以上步骤，直到四张牌合为一张。</li>
+              <li>最终结果为 24 即获胜。</li>
+            </ol>
+          </article>
+          <article class="help-card">
+            <h3><span>02</span> 常用凑法</h3>
+            <div class="target-pairs">
+              <span><b>3</b> × <b>8</b></span>
+              <span><b>4</b> × <b>6</b></span>
+              <span><b>2</b> × <b>12</b></span>
+              <span><b>48</b> ÷ <b>2</b></span>
+              <span><b>96</b> ÷ <b>4</b></span>
+            </div>
+            <p>
+              先观察能否凑出 3 和 8、4 和 6，或先算出 48、96 等中间值。不要害怕分数，
+              分数常常是唯一解法的关键。
+            </p>
+          </article>
+        </div>
+
+        <div class="fraction-tip">
+          <span class="fraction-tip-icon">÷</span>
+          <div>
+            <strong>分数也能赢</strong>
+            <p>
+              以 3、3、8、8 为例：<code>8 ÷ (3 − 8 ÷ 3) = 24</code>。
+              游戏内部使用精确分数，不会因为小数误差误判。
+            </p>
+          </div>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog class="modal result-modal" id="resultDialog" aria-labelledby="resultTitle">
+      <div class="result-shell">
+        <button class="modal-close" type="button" data-close aria-label="关闭结果窗口">×</button>
+        <div class="result-burst" id="resultBurst" aria-hidden="true"></div>
+        <div class="result-symbol" id="resultIcon">✓</div>
+        <div class="modal-kicker" id="resultEyebrow">ROUND COMPLETE</div>
+        <h2 class="modal-title" id="resultTitle">漂亮，正好 24。</h2>
+        <p class="result-copy" id="resultText">四张牌全部用完，你完成了本局挑战。</p>
+        <div class="result-formula" id="resultFormula">—</div>
+        <div class="result-meta" id="resultMeta"></div>
+        <div class="result-actions">
+          <button class="action-btn action-primary" id="resultRestart" type="button">
+            再来一局
+          </button>
+          <button class="action-btn action-secondary" id="resultClose" type="button">
+            回到牌桌
+          </button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog class="modal exit-modal" id="exitDialog" aria-labelledby="exitTitle">
+      <div class="modal-shell exit-shell">
+        <button class="modal-close" type="button" data-close aria-label="关闭退出窗口">×</button>
+        <div class="exit-symbol" aria-hidden="true">24</div>
+        <div class="modal-kicker">LEAVE THE TABLE?</div>
+        <h2 class="modal-title" id="exitTitle">要退出游戏吗？</h2>
+        <p class="modal-lede">当前进度将不会保留。确认后程序会尝试关闭当前页面。</p>
+        <div class="result-actions">
+          <button class="action-btn action-secondary" id="exitCancel" type="button">继续玩</button>
+          <button class="action-btn action-danger" id="exitConfirm" type="button">退出游戏</button>
+        </div>
+      </div>
+    </dialog>
+
+    <div class="exit-screen" id="exitScreen" hidden>
+      <div class="exit-screen-inner">
+        <span class="exit-screen-mark">24</span>
+        <div class="modal-kicker">GAME CLOSED</div>
+        <h1>游戏已退出</h1>
+        <p>浏览器限制了网页自动关闭标签页。你可以安全地关闭此页面，或重新进入牌桌。</p>
+        <button class="action-btn action-primary" id="reenterBtn" type="button">重新进入</button>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <div class="sr-only" id="liveRegion" aria-live="polite"></div>
+    <canvas class="confetti-canvas" id="confetti" aria-hidden="true"></canvas>
+
+    <noscript>
+      <div class="noscript">这个游戏需要启用 JavaScript 才能运行。</div>
+    </noscript>
+
+    <script src="solver.js" defer></script>
+    <script src="app.js" defer></script>
+  </body>
+</html>
